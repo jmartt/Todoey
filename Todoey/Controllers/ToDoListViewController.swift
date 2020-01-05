@@ -7,12 +7,16 @@
 //
 
 import UIKit
+import CoreData
 
 class ToDoListViewController: UITableViewController {
 
     var itemArray = [Item]()
     
     let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -45,6 +49,10 @@ class ToDoListViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         //print(itemArray[indexPath.row])
         
+        // FOR DELETING FROM CORE DATA
+        // itemArray.remove(at: indexPath.row) // remove locally
+        // context.delete(itemArray[indexPath.row]) // remove from permanent storage (Core Data)
+        
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
         saveItems()
@@ -62,8 +70,9 @@ class ToDoListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             // what will happen when the user clicks the add item button on our UIAlert
             
-            let newItem = Item()
+            let newItem = Item(context: self.context)
             newItem.title = textField.text!
+            newItem.done = false
             
             self.itemArray.append(newItem)
             
@@ -82,28 +91,24 @@ class ToDoListViewController: UITableViewController {
     // MARK - Model Manipuation Methods
     
     func saveItems() {
-        let encoder = PropertyListEncoder()
         
         do {
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save() // Always need to call this when creating, updating, or deleting data from Core Data for changes to persist.
         } catch {
-            print("Error encoding item array, \(error)")
+            print("Error saving context: \(error)")
         }
         
-        tableView.reloadData() // forces the tableView to call it's DataSource method again so that it reloads data that's meant to be inside
+        self.tableView.reloadData() // forces the tableView to call it's DataSource method again so that it reloads data that's meant to be inside
     }
     
     func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) { // shorthand for an optional binder
-            let decoder = PropertyListDecoder()
-            
-            do {
-                itemArray = try decoder.decode([Item].self, from: data)
-            } catch {
-                print("Error decoding item array, \(error)")
-            }
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        do {
+            itemArray = try context.fetch(request)
+        } catch {
+            print("Error fetching data from context: \(error)")
         }
+        
     }
 }
 
