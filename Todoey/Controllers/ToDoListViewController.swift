@@ -13,6 +13,12 @@ class ToDoListViewController: UITableViewController {
 
     var itemArray = [Item]()
     
+    var selectedCategory : Category? {
+        didSet{ // everything in these curly braces will execute when the variable gets set/initialized
+            loadItems()
+        }
+    }
+    
     let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
@@ -21,7 +27,7 @@ class ToDoListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        loadItems()
+        
     }
 
     //MARK - Tableview Datasource Methods
@@ -73,6 +79,7 @@ class ToDoListViewController: UITableViewController {
             let newItem = Item(context: self.context)
             newItem.title = textField.text!
             newItem.done = false
+            newItem.parentCategory = self.selectedCategory
             
             self.itemArray.append(newItem)
             
@@ -101,8 +108,16 @@ class ToDoListViewController: UITableViewController {
         self.tableView.reloadData() // forces the tableView to call it's DataSource method again so that it reloads data that's meant to be inside
     }
     
-    func loadItems() {
-        let request : NSFetchRequest<Item> = Item.fetchRequest()
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) { // This notation means that if we don't pass in the param when we call this function, the system will auto initialize a new param to use inside.
+        
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+
+        if let additionalPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        } else {
+            request.predicate = categoryPredicate
+        }
+        
         do {
             itemArray = try context.fetch(request)
         } catch {
@@ -110,5 +125,35 @@ class ToDoListViewController: UITableViewController {
         }
         
     }
+    
 }
 
+// Extensions give you the ability to split up certain functionality of your view controller to keep actions related to certain events organized.
+// Below, we are extending our view controller class for the purposes of adding search bar methods since we added a search bar.
+// This helps keeps view controller files from getting too crammed with a bunch of methods for different things. Another advantage of this is making debugging issues easier since we are isolating code depending on the event it relates to.
+// IF I EVER USE SEARCH BARS IN MY APPS, LOOKS UP THE NSPREDICATE CHEATSHEET FROM REALM TO LEARN HOW TO STRUCTURE SEARCH QUERIES FOR MY DATA.
+
+//MARK: - Search Bar Methods
+extension ToDoListViewController : UISearchBarDelegate {
+    
+    // This method gets fired off when we press enter after typing in text in the Search bar
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+        
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!) // NSPredicate is a foundation class that specifies how data should be fetched/filtered. It's a query language.
+        
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)] // sorts the results we get back
+        
+        loadItems(with: request, predicate: predicate)
+    }
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems()
+            
+            DispatchQueue.main.async { // runs an asynchronous process in the foreground on a different thread so this method doesn't slow down your app -- USEFUL!
+                searchBar.resignFirstResponder() // This just means to no longer be the thing that is currently selected. Once the search bar text clears, reload all of the persisted data, and deselect the search bar.
+            }
+        }
+    }
+}
