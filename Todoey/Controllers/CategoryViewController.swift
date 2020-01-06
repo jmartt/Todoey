@@ -65,16 +65,7 @@ class CategoryViewController: UITableViewController {
     func loadCategories() {
         
         categories = realm.objects(Category.self)
-        
-        // CORE DATA CODE Pre-realm implementation
-//        let request : NSFetchRequest<Category> = Category.fetchRequest() // gets back all NSManagedObjects that were created using the category object
-//        
-//        do {
-//            categories = try context.fetch(request)
-//        } catch {
-//            print("Error loading categories: \(error)")
-//        }
-//        
+           
         tableView.reloadData()
     }
     
